@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HCCAPX to 22000 Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+        }
+        .button {
+            padding: 10px 20px;
+            margin: 10px 0;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .output {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            max-height: 200px; /* 限制高度 */
+            overflow-y: auto; /* 超出时显示滚动条 */
+            white-space: pre-wrap; /* 保持换行 */
+            word-wrap: break-word; /* 自动换行，避免长字符串溢出 */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>HCCAPX to 22000 Converter</h1>
+
+    <input type="file" id="fileInput" accept=".hccapx">
+    <button class="button" id="convertButton" disabled>Convert to 22000</button>
+    
+    <div id="result" class="output"></div>
+    
+    <button class="button" id="saveButton" disabled>Save as .hc22000</button>
+</div>
+
+<script>
+    let parsedData = '';
+    
+    // Add event listener to file input
+    document.getElementById('fileInput').addEventListener('change', function (event) {
+        const file = event.target.files[0];
+        if (file && file.name.endsWith('.hccapx')) {
+            document.getElementById('convertButton').disabled = false;
+        }
+    });
+
+    // Convert HCCAPX to 22000 format
+    document.getElementById('convertButton').addEventListener('click', function () {
+        const file = document.getElementById('fileInput').files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const arrayBuffer = event.target.result;
+                const data = new DataView(arrayBuffer);
+                
+                // Parse HCCAPX fields
+                const signature = String.fromCharCode(...new Uint8Array(arrayBuffer.slice(0, 4)));
+                if (signature !== 'HCPX') {
+                    alert('Invalid HCCAPX file.');
+                    return;
+                }
+                
+                const version = data.getUint32(4, true);
+                const messagePair = data.getUint8(8);
+                const essid_len = data.getUint8(9);
+                const essid = new Uint8Array(arrayBuffer.slice(10, 10 + essid_len));
+                const keyver = data.getUint8(42);
+                const keymic = new Uint8Array(arrayBuffer.slice(43, 59));
+                const mac_ap = new Uint8Array(arrayBuffer.slice(59, 65));
+                const nonce_ap = new Uint8Array(arrayBuffer.slice(65, 97));
+                const mac_sta = new Uint8Array(arrayBuffer.slice(97, 103));
+                const eapol_len = data.getUint16(135, true);
+                const eapol = new Uint8Array(arrayBuffer.slice(137, 137 + eapol_len));
+
+                // Construct 22000 format
+                const protocol = 'WPA';
+                const type = '02';  // EAPOL
+                const pmkid_mic = [...keymic].map(b => b.toString(16).padStart(2, '0')).join('');
+                const mac_ap_hex = [...mac_ap].map(b => b.toString(16).padStart(2, '0')).join('');
+                const mac_sta_hex = [...mac_sta].map(b => b.toString(16).padStart(2, '0')).join('');
+                const essid_hex = [...essid].map(b => b.toString(16).padStart(2, '0')).join('');
+                const nonce_ap_hex = [...nonce_ap].map(b => b.toString(16).padStart(2, '0')).join('');
+                const eapol_hex = [...eapol].map(b => b.toString(16).padStart(2, '0')).join('');
+                const message_pair_hex = messagePair.toString(16).padStart(2, '0');
+
+                parsedData = `${protocol}*${type}*${pmkid_mic}*${mac_ap_hex}*${mac_sta_hex}*${essid_hex}*${nonce_ap_hex}*${eapol_hex}*${message_pair_hex}`;
+
+                // Display result
+                document.getElementById('result').innerText = parsedData;
+                document.getElementById('saveButton').disabled = false;
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    });
+
+    // Save as .hc22000 file
+    document.getElementById('saveButton').addEventListener('click', function () {
+        const file = document.getElementById('fileInput').files[0];
+        if (parsedData && file) {
+            const a = document.createElement('a');
+            const fileName = file.name.replace('.hccapx', '.hc22000');
+            const blob = new Blob([parsedData], { type: 'text/plain' });
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+        }
+    });
+</script>
+
+</body>
+</html>
